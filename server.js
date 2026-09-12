@@ -5,7 +5,7 @@ const app = express();
 const PORT = process.env.PORT || 3000; 
 
 // --- ВСТАВЬ СЮДА СВОИ ДАННЫЕ ИЗ SUPABASE ---
-const SUPABASE_URL = 'https://supabase.com'; 
+const SUPABASE_URL = 'https://rzjtauzueicyfzoiqoeq.supabase.co/rest/v1/'; 
 const SUPABASE_KEY = 'sb_publishable_ItpFo0ZgFsthxkrVpD79dg_0TK0hkvn';
 // -------------------------------------------
 
