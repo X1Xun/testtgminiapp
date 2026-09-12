@@ -201,7 +201,7 @@
                             <div class="news-excerpt">${item.content}</div>
                             <div class="news-footer">
                                 <div class="news-date">${new Date(item.createdAt).toLocaleString('ru-RU')}</div>
-                                <button class="like-btn" onclick="toggleLike(event, this)">
+                                <button class="like-btn" onclick="toggleLike(event, this, ${item.id})">
                                     ❤️ <span class="like-count">${item.likes || 0}</span>
                                 </button>
                             </div>
@@ -234,19 +234,57 @@
             if (tg && tg.BackButton) { try { tg.BackButton.hide(); } catch(e) {} }
         }
 
-        function toggleLike(event, btn) {
+        // Обновленная функция лайка с отправкой в базу
+        async function toggleLike(event, btn, id) {
             if (event && event.stopPropagation) event.stopPropagation();
+            
             const countSpan = btn.querySelector('.like-count');
             let currentCount = parseInt(countSpan.innerText) || 0;
-            if (btn.classList.contains('liked')) {
+            
+            // Определяем действие в зависимости от того, есть ли уже класс liked
+            const isLiked = btn.classList.contains('liked');
+            const action = isLiked ? 'unlike' : 'like';
+        
+            // Сразу меняем визуал для мгновенного отклика (Optimistic UI)
+            if (isLiked) {
                 btn.classList.remove('liked');
                 countSpan.innerText = currentCount - 1;
             } else {
                 btn.classList.add('liked');
                 countSpan.innerText = currentCount + 1;
-                if (tg && tg.HapticFeedback) { try { tg.HapticFeedback.impactOccurred('light'); } catch(e) {} }
+                if (tg && tg.HapticFeedback) {
+                    try { tg.HapticFeedback.impactOccurred('light'); } catch(e) {}
+                }
+            }
+        
+            // Отправляем запрос на бэкенд в фоновом режиме
+            try {
+                const response = await fetch(`${API_URL}/api/news/${id}/like`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+            
+                if (!response.ok) {
+                    // Если сервер вернул ошибку, откатываем визуал назад
+                    throw new Error('Ошибка сервера');
+                }
+                
+                const result = await response.json();
+                countSpan.innerText = result.likes; // Синхронизируем точное число с сервера
+            } catch (e) {
+                console.error("Не удалось сохранить лайк:", e);
+                // Откат изменений при сбое сети
+                if (isLiked) {
+                    btn.classList.add('liked');
+                    countSpan.innerText = currentCount;
+                } else {
+                    btn.classList.remove('liked');
+                    countSpan.innerText = currentCount;
+                }
             }
         }
+
     </script>
 </body>
 </html>

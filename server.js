@@ -54,30 +54,36 @@ app.get('/api/news', (req, res) => {
     }
 });
 
-app.post('/api/news', (req, res) => {
-    const { title, content } = req.body;
-    if (!title || !content) {
-        return res.status(400).json({ error: 'Заголовок и текст обязательны' });
-    }
+// API: Поставить или убрать лайк
+app.post('/api/news/:id/like', (req, res) => {
+    const articleId = parseInt(req.params.id);
+    const { action } = req.body; // action может быть 'like' или 'unlike'
+
     try {
         const news = readData();
-        const newArticle = {
-            id: Date.now(),
-            title,
-            content,
-            likes: 0,
-            createdAt: new Date().toISOString()
-        };
-        news.push(newArticle);
+        const article = news.find(item => item.id === articleId);
+
+        if (!article) {
+            return res.status(404).json({ error: 'Новость не найдена' });
+        }
+
+        // Обновляем счетчик на сервере
+        if (action === 'like') {
+            article.likes = (article.likes || 0) + 1;
+        } else if (action === 'unlike') {
+            article.likes = Math.max(0, (article.likes || 0) - 1); // не уходим в минус
+        }
+
         writeData(news);
-        
+
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        return res.status(200).send(JSON.stringify({ success: true, id: newArticle.id }));
+        return res.status(200).send(JSON.stringify({ success: true, likes: article.likes }));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 app.listen(PORT, () => {
     console.log(`Сервер работает на http://localhost:${PORT}`);
