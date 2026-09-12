@@ -50,22 +50,6 @@
         }
         .categories-chips::-webkit-scrollbar { display: none; }
 
-        .chip {
-            background: var(--sec-bg);
-            color: var(--sub-text);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            white-space: nowrap;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .chip.active {
-            background: var(--button-active);
-            color: #fff;
-        }
-
         .news-card {
             background: var(--sec-bg);
             border-radius: 16px;
@@ -162,12 +146,6 @@
 
     <div class="app-container">
         <div class="header">Свежие новости</div>
-        <div class="categories-chips">
-            <div class="chip active">Все</div>
-            <div class="chip">Главное</div>
-            <div class="chip">Технологии</div>
-            <div class="chip">Игры</div>
-        </div>
         <div id="news-container">
             <div style="text-align:center; color:gray; margin-top:20px;">Загрузка ленты...</div>
         </div>
