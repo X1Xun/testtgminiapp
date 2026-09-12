@@ -1,113 +1,128 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000; 
 
-// Папка для базы данных
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)){
-    fs.mkdirSync(DATA_DIR);
-}
-const DB_FILE = path.join(DATA_DIR, 'news.json');
+// --- ВСТАВЬ СЮДА СВОИ ДАННЫЕ ИЗ SUPABASE ---
+const SUPABASE_URL = 'https://supabase.com'; 
+const SUPABASE_KEY = 'sb_publishable_ItpFo0ZgFsthxkrVpD79dg_0TK0hkvn';
+// -------------------------------------------
 
-// Включаем CORS
 app.use(cors({
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Обязательно подключаем обработчик JSON-тела запросов ДО статических файлов и API
 app.use(express.json());
 
-function readData() {
-    if (!fs.existsSync(DB_FILE)) {
-        fs.writeFileSync(DB_FILE, JSON.stringify([]));
+// Вспомогательная функция для запросов к Supabase API через встроенный fetch
+async function supabaseFetch(endpoint, options = {}) {
+    const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
+    const headers = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || 'return=representation',
+        ...options.headers
+    };
+
+    const response = await fetch(url, { ...options, headers });
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Supabase Error: ${response.status} - ${errText}`);
     }
-    const data = fs.readFileSync(DB_FILE, 'utf8');
-    return data ? JSON.parse(data) : [];
+    return await response.json();
 }
 
-function writeData(data) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
-
-// --- API ЭНДПОИНТЫ (Должны идти выше, чем express.static) ---
+// --- API ЭНДПОИНТЫ ---
 
 // 1. Получить все новости
-app.get('/api/news', (req, res) => {
+app.get('/api/news', async (req, res) => {
     try {
-        const news = readData();
-        news.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        // Запрашиваем данные из таблицы articles со сортировкой поcreatedAt по убыванию
+        const data = await supabaseFetch('articles?order=createdAt.desc');
+        
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        return res.status(200).send(JSON.stringify(news));
+        return res.status(200).send(JSON.stringify(data));
     } catch (error) {
+        console.error(error);
         return res.status(500).json({ error: error.message });
     }
 });
 
 // 2. Добавить новость
-app.post('/api/news', (req, res) => {
+app.post('/api/news', async (req, res) => {
     const { title, content } = req.body;
     if (!title || !content) {
         return res.status(400).json({ error: 'Заголовок и текст обязательны' });
     }
     try {
-        const news = readData();
-        const newArticle = {
-            id: Date.now(),
-            title,
-            content,
-            likes: 0,
-            createdAt: new Date().toISOString()
-        };
-        news.push(newArticle);
-        writeData(news);
+        const result = await supabaseFetch('articles', {
+            method: 'POST',
+            body: JSON.stringify({ title, content, likes: 0 })
+        });
         
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        return res.status(200).send(JSON.stringify({ success: true, id: newArticle.id }));
+        return res.status(200).send(JSON.stringify({ success: true, id: result[0].id }));
     } catch (error) {
+        console.error(error);
         return res.status(500).json({ error: error.message });
     }
 });
 
 // 3. Обработка лайков
-app.post('/api/news/:id/like', (req, res) => {
+app.post('/api/news/:id/like', async (req, res) => {
     const articleId = parseInt(req.params.id);
     const { action } = req.body;
 
     try {
-        const news = readData();
-        const article = news.find(item => item.id === articleId);
-
-        if (!article) {
+        // 1. Получаем текущее количество лайков статьи
+        const articleData = await supabaseFetch(`articles?id=eq.${articleId}`);
+        if (!articleData || articleData.length === 0) {
             return res.status(404).json({ error: 'Новость не найдена' });
         }
+        
+        let currentLikes = articleData[0].likes || 0;
+        if (action === 'like') currentLikes += 1;
+        if (action === 'unlike') currentLikes = Math.max(0, currentLikes - 1);
 
-        if (action === 'like') {
-            article.likes = (article.likes || 0) + 1;
-        } else if (action === 'unlike') {
-            article.likes = Math.max(0, (article.likes || 0) - 1);
-        }
-
-        writeData(news);
+        // 2. Обновляем значение в базе
+        const updated = await supabaseFetch(`articles?id=eq.${articleId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ likes: currentLikes })
+        });
 
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        return res.status(200).send(JSON.stringify({ success: true, likes: article.likes }));
+        return res.status(200).send(JSON.stringify({ success: true, likes: updated[0].likes }));
     } catch (error) {
+        console.error(error);
         return res.status(500).json({ error: error.message });
     }
 });
 
-// СТАТИКА (Раздача HTML страниц) — строго в самом низу!
+// 4. Удалить новость
+app.delete('/api/news/:id', async (req, res) => {
+    const articleId = parseInt(req.params.id);
+    try {
+        await supabaseFetch(`articles?id=eq.${articleId}`, {
+            method: 'DELETE'
+        });
+        
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.status(200).send(JSON.stringify({ success: true, message: 'Новость успешно удалена' }));
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// Статика
 app.use(express.static(__dirname));
 
-app.listen(PORT, () => {
-    console.log(`Сервер работает на порту ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Сервер работает на порту ${PORT}`));
