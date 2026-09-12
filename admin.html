@@ -200,11 +200,15 @@
 
             try {
                 console.log("Отправка запроса на /api/news...");
-                const response = await fetch('/api/news', {
+                                // Замени блок fetch внутри функции publishNews на этот:
+                const API_URL = 'https://testtgminiapp-wmnp.onrender.com'; // ТВОЯ ССЫЛКА НА RENDER
+                            
+                const response = await fetch(`${API_URL}/api/news`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title, content })
                 });
+
 
                 console.log("Ответ от сервера получен. Статус:", response.status);
                 const result = await response.json();

@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TG News App</title>
-    <script src="https://telegram.org"></script>
     <style>
         :root {
             --bg-color: var(--tg-theme-bg-color, #ffffff);
@@ -60,7 +59,6 @@
             color: #fff;
         }
 
-        /* Карточка новости */
         .news-card {
             background: var(--sec-bg);
             border-radius: 16px;
@@ -72,22 +70,10 @@
             cursor: pointer;
             transition: transform 0.1s ease;
         }
-        .news-card:active {
-            transform: scale(0.98);
-        }
-
-        .news-body {
-            padding: 16px;
-        }
-
-        .news-title {
-            font-size: 18px;
-            font-weight: 700;
-            line-height: 1.3;
-            margin: 0 0 8px 0;
-        }
-
-        /* Обрезаем длинный текст в ленте (показываем первые 3 строки) */
+        .news-card:active { transform: scale(0.98); }
+        .news-body { padding: 16px; }
+        .news-title { font-size: 18px; font-weight: 700; line-height: 1.3; margin: 0 0 8px 0; }
+        
         .news-excerpt {
             font-size: 15px;
             line-height: 1.4;
@@ -98,11 +84,7 @@
             -webkit-box-orient: vertical;  
             overflow: hidden;
         }
-
-        /* Скрываем картинки внутри превью общей ленты */
-        .news-excerpt img {
-            display: none !important;
-        }
+        .news-excerpt img { display: none !important; }
 
         .news-footer {
             display: flex;
@@ -112,11 +94,7 @@
             padding-top: 12px;
             border-top: 1px solid rgba(0,0,0,0.05);
         }
-
-        .news-date {
-            font-size: 13px;
-            color: var(--hint-color);
-        }
+        .news-date { font-size: 13px; color: var(--hint-color); }
 
         .like-btn {
             display: flex;
@@ -133,7 +111,6 @@
         }
         .like-btn.liked { color: #ff3b30; }
 
-        /* Панель полной новости */
         .full-news-page {
             position: fixed;
             top: 0;
@@ -149,59 +126,14 @@
             display: flex;
             flex-direction: column;
         }
-
-        .full-news-page.open {
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .full-news-header {
-            padding: 16px;
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-            background: var(--bg-color);
-        }
-
-        .back-btn {
-            background: transparent;
-            border: none;
-            color: var(--button-color);
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            padding: 0;
-        }
-
-        .full-news-scroll {
-            padding: 20px 16px;
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-
-        .full-news-title {
-            font-size: 24px;
-            font-weight: 800;
-            line-height: 1.2;
-            margin: 0 0 12px 0;
-        }
-
-        .full-news-date {
-            font-size: 14px;
-            color: var(--hint-color);
-            margin-bottom: 20px;
-        }
-
-        .full-news-content {
-            font-size: 16px;
-            line-height: 1.5;
-        }
-        .full-news-content img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 12px;
-            margin: 12px 0;
-            display: block;
-        }
+        .full-news-page.open { transform: translateX(-50%) translateY(0); }
+        .full-news-header { padding: 16px; display: flex; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); background: var(--bg-color); }
+        .back-btn { background: transparent; border: none; color: var(--button-color); font-size: 16px; font-weight: 600; cursor: pointer; padding: 0; }
+        .full-news-scroll { padding: 20px 16px; overflow-y: auto; flex-grow: 1; }
+        .full-news-title { font-size: 24px; font-weight: 800; line-height: 1.2; margin: 0 0 12px 0; }
+        .full-news-date { font-size: 14px; color: var(--hint-color); margin-bottom: 20px; }
+        .full-news-content { font-size: 16px; line-height: 1.5; }
+        .full-news-content img { max-width: 100%; height: auto; border-radius: 12px; margin: 12px 0; display: block; }
         .full-news-content p { margin: 0 0 16px 0; }
     </style>
 </head>
@@ -209,14 +141,12 @@
 
     <div class="app-container">
         <div class="header">Свежие новости</div>
-
         <div class="categories-chips">
             <div class="chip active">Все</div>
             <div class="chip">Главное</div>
             <div class="chip">Технологии</div>
             <div class="chip">Игры</div>
         </div>
-
         <div id="news-container">
             <div style="text-align:center; color:gray; margin-top:20px;">Загрузка ленты...</div>
         </div>
@@ -233,33 +163,28 @@
         </div>
     </div>
 
+    <!-- Переносим скрипт Telegram вниз, чтобы он загружался после прогрузки элементов страницы -->
+    <script src="https://telegram.org"></script>
     <script>
-        // Безопасная инициализация Telegram WebApp
+        // Вставь сюда СВОЮ ссылку от Render (без слеша на конце)
+        const API_URL = 'https://testtgminiapp-wmnp.onrender.com'; 
+
         let tg = null;
         if (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) {
             tg = window.Telegram.WebApp;
-            try {
-                tg.ready();
-                tg.expand();
-            } catch (e) {
-                console.log("Ошибка инициализации TG API, запускаемся в обычном режиме");
-            }
+            try { tg.ready(); tg.expand(); } catch (e) {}
         }
 
         let allNews = [];
-
-        // Запуск загрузки
         loadNews(); 
 
         async function loadNews() {
-            console.log("Запрос новостей с сервера...");
             try {
-                const response = await fetch('/api/news');
+                // Делаем абсолютный запрос вместо относительного
+                const response = await fetch(`${API_URL}/api/news`);
                 allNews = await response.json();
-                console.log("Новости успешно загружены с сервера:", allNews);
                 
                 const container = document.getElementById('news-container');
-                
                 if (!allNews || allNews.length === 0) {
                     container.innerHTML = '<div style="text-align:center; color:gray; margin-top:20px;">Новостей пока нет...</div>';
                     return;
@@ -267,12 +192,9 @@
 
                 container.innerHTML = '';
                 allNews.forEach(item => {
-                    // Генерируем карточку
                     const card = document.createElement('div');
                     card.className = 'news-card';
-                    // Передаем корректный ID в функцию открытия
                     card.setAttribute('onclick', `openArticle(${item.id})`);
-                    
                     card.innerHTML = `
                         <div class="news-body">
                             <h2 class="news-title">${item.title}</h2>
@@ -287,49 +209,44 @@
                     `;
                     container.appendChild(card);
                 });
-                console.log("Лента успешно отрендерена на экране");
             } catch (e) {
-                console.error("Критическая ошибка загрузки ленты:", e);
+                console.error(e);
                 document.getElementById('news-container').innerHTML = 
-                    '<div style="text-align:center; color:red; margin-top:20px;">Не удалось загрузить новости. Проверьте консоль F12!</div>';
+                    '<div style="text-align:center; color:red; margin-top:20px;">Ошибка загрузки данных.</div>';
             }
         }
 
         function openArticle(id) {
-            console.log("Пытаемся открыть статью с ID:", id);
             const article = allNews.find(item => item.id == id);
-            if (!article) {
-                console.error("Статья с таким ID не найдена в закэшированном массиве");
-                return;
-            }
-
+            if (!article) return;
             document.getElementById('full-title').innerText = article.title;
             document.getElementById('full-date').innerText = new Date(article.createdAt).toLocaleString('ru-RU');
             document.getElementById('full-content').innerHTML = article.content;
-
             document.getElementById('full-news-page').classList.add('open');
-            console.log("Окно статьи успешно открыто");
-
+            
             if (tg && tg.BackButton) {
-                try {
-                    tg.BackButton.show();tg.BackButton.onClick(closeArticle);
-                } catch(e) {
-
-                }
+                try { tg.BackButton.show(); tg.BackButton.onClick(closeArticle); } catch(e) {}
             }
         }
 
-        function closeArticle() {document.getElementById('full-news-page').classList.remove('open');if (tg && tg.BackButton) {try { tg.BackButton.hide(); } catch(e) {}}}
+        function closeArticle() {
+            document.getElementById('full-news-page').classList.remove('open');
+            if (tg && tg.BackButton) { try { tg.BackButton.hide(); } catch(e) {} }
+        }
+
         function toggleLike(event, btn) {
             if (event && event.stopPropagation) event.stopPropagation();
             const countSpan = btn.querySelector('.like-count');
-            let currentCount = parseInt(countSpan.innerText) || 0;if (btn.classList.contains('liked')) {
-                btn.classList.remove('liked');countSpan.innerText = currentCount - 1;
+            let currentCount = parseInt(countSpan.innerText) || 0;
+            if (btn.classList.contains('liked')) {
+                btn.classList.remove('liked');
+                countSpan.innerText = currentCount - 1;
             } else {
-                btn.classList.add('liked');countSpan.innerText = currentCount + 1;if (tg && tg.HapticFeedback) {
-                    try { tg.HapticFeedback.impactOccurred('light'); } catch(e) {
-
-                    }
-                }
+                btn.classList.add('liked');
+                countSpan.innerText = currentCount + 1;
+                if (tg && tg.HapticFeedback) { try { tg.HapticFeedback.impactOccurred('light'); } catch(e) {} }
             }
         }
+    </script>
+</body>
+</html>
