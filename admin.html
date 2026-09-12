@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления новостями</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .admin-container {
+            width: 100%;
+            max-width: 700px;
+            background: #fff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 24px;
+            color: #248bcf;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 14px;
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border 0.2s;
+        }
+        input[type="text"]:focus {
+            border-color: #248bcf;
+        }
+
+        .toolbar {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            padding: 8px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar button {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toolbar button:hover {
+            background: #e9ecef;
+            border-color: #999;
+        }
+
+        .editor-box {
+            width: 100%;
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            padding: 16px;
+            box-sizing: border-box;
+            outline: none;
+            font-size: 16px;
+            line-height: 1.5;
+            background: #fff;
+        }
+        .editor-box:focus {
+            border-color: #248bcf;
+        }
+        
+        .editor-box img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: block;
+        }
+
+        .submit-btn {
+            background: #248bcf;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 24px;
+            transition: background 0.2s;
+        }
+        .submit-btn:hover {
+            background: #1a6b9e;
+        }
+
+        /* Блок статуса вместо alert */
+        .status-message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            display: none;
+            text-align: center;
+        }
+        .status-success { background-color: #e2f0d9; color: #385723; display: block; }
+        .status-error { background-color: #fce4d6; color: #c65911; display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="admin-container">
+        <h1>Создание публикации</h1>
+        
+        <label for="news-title">Заголовок новости</label>
+        <input type="text" id="news-title" placeholder="Введите цепляющий заголовок..." required>
+        
+        <label>Текст новости</label>
+        <div class="toolbar">
+            <button onclick="format('bold')"><b>B</b></button>
+            <button onclick="format('italic')"><i>I</i></button>
+            <button onclick="format('underline')"><u>U</u></button>
+            <button onclick="format('insertUnorderedList')">• Список</button>
+            <button onclick="insertImage()">🖼 Картинка</button>
+            <button onclick="format('removeFormat')">🧹 Очистить</button>
+        </div>
+        
+        <div id="editor" class="editor-box" contenteditable="true"></div>
+
+        <button class="submit-btn" onclick="publishNews()">Опубликовать новость</button>
+        
+        <!-- Сюда будет выводиться текст статуса -->
+        <div id="status" class="status-message"></div>
+    </div>
+
+    <script>
+        function format(command) {
+            document.execCommand(command, false, null);
+            document.getElementById('editor').focus();
+        }
+
+        function insertImage() {
+            const url = prompt('Вставьте прямую ссылку на изображение (URL):');
+            if (url) {
+                document.execCommand('insertImage', false, url);
+            }
+        }
+
+        function showStatus(text, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = text;
+            statusDiv.className = 'status-message ' + (isError ? 'status-error' : 'status-success');
+        }
+
+        async function publishNews() {
+            console.log("Кнопка нажата, собираем данные...");
+            const titleInput = document.getElementById('news-title');
+            const editorDiv = document.getElementById('editor');
+
+            const title = titleInput.value.trim();
+            const content = editorDiv.innerHTML.trim();
+
+            if (!title || content === '' || content === '<br>') {
+                showStatus('Пожалуйста, заполните заголовок и текст статьи!', true);
+                return;
+            }
+
+            try {
+                console.log("Отправка запроса на /api/news...");
+                const response = await fetch('/api/news', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content })
+                });
+
+                console.log("Ответ от сервера получен. Статус:", response.status);
+                const result = await response.json();
+                console.log("Результат:", result);
+
+                if (response.ok && result.success) {
+                    showStatus('Новость успешно добавлена в базу данных!');
+                    titleInput.value = '';
+                    editorDiv.innerHTML = '';
+                } else {
+                    showStatus('Ошибка сервера: ' + (result.error || 'Неизвестный сбой'), true);
+                }
+            } catch (error) {
+                console.error('Критическая ошибка отправки:', error);
+                showStatus('Не удалось связаться с сервером. Проверь консоль F12!', true);
+            }
+        }
+    </script>
+</body>
+</html>
