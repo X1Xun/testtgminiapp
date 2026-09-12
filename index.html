@@ -178,20 +178,37 @@
         let allNews = [];
         loadNews(); 
 
+        // Функция для получения списка лайкнутых новостей из памяти устройства
+        function getLikedNews() {
+            const liked = localStorage.getItem('liked_articles');
+            return liked ? JSON.parse(liked) : [];
+        }
+
+        // Функция для сохранения списка лайкнутых новостей в память устройства
+        function saveLikedNews(likedArray) {
+            localStorage.setItem('liked_articles', JSON.stringify(likedArray));
+        }
+
         async function loadNews() {
             try {
-                // Делаем абсолютный запрос вместо относительного
                 const response = await fetch(`${API_URL}/api/news`);
                 allNews = await response.json();
-                
+
                 const container = document.getElementById('news-container');
                 if (!allNews || allNews.length === 0) {
                     container.innerHTML = '<div style="text-align:center; color:gray; margin-top:20px;">Новостей пока нет...</div>';
                     return;
                 }
-
+            
+                // Получаем массив ID, которые этот пользователь уже лайкал ранее
+                const myLikes = getLikedNews();
+            
                 container.innerHTML = '';
                 allNews.forEach(item => {
+                    // Проверяем, ставил ли текущий пользователь лайк этой новости
+                    const isAlreadyLiked = myLikes.includes(item.id);
+                    const likedClass = isAlreadyLiked ? 'liked' : '';
+                
                     const card = document.createElement('div');
                     card.className = 'news-card';
                     card.setAttribute('onclick', `openArticle(${item.id})`);
@@ -201,7 +218,8 @@
                             <div class="news-excerpt">${item.content}</div>
                             <div class="news-footer">
                                 <div class="news-date">${new Date(item.createdAt).toLocaleString('ru-RU')}</div>
-                                <button class="like-btn" onclick="toggleLike(event, this, ${item.id})">
+                                <!-- Добавляем класс liked, если новость уже была лайкнута ранее -->
+                                <button class="like-btn ${likedClass}" onclick="toggleLike(event, this, ${item.id})">
                                     ❤️ <span class="like-count">${item.likes || 0}</span>
                                 </button>
                             </div>
@@ -216,48 +234,39 @@
             }
         }
 
-        function openArticle(id) {
-            const article = allNews.find(item => item.id == id);
-            if (!article) return;
-            document.getElementById('full-title').innerText = article.title;
-            document.getElementById('full-date').innerText = new Date(article.createdAt).toLocaleString('ru-RU');
-            document.getElementById('full-content').innerHTML = article.content;
-            document.getElementById('full-news-page').classList.add('open');
-            
-            if (tg && tg.BackButton) {
-                try { tg.BackButton.show(); tg.BackButton.onClick(closeArticle); } catch(e) {}
-            }
-        }
-
-        function closeArticle() {
-            document.getElementById('full-news-page').classList.remove('open');
-            if (tg && tg.BackButton) { try { tg.BackButton.hide(); } catch(e) {} }
-        }
-
-        // Обновленная функция лайка с отправкой в базу
         async function toggleLike(event, btn, id) {
             if (event && event.stopPropagation) event.stopPropagation();
-            
+
             const countSpan = btn.querySelector('.like-count');
             let currentCount = parseInt(countSpan.innerText) || 0;
-            
-            // Определяем действие в зависимости от того, есть ли уже класс liked
+
+            // Проверяем текущее состояние кнопки на экране
             const isLiked = btn.classList.contains('liked');
             const action = isLiked ? 'unlike' : 'like';
         
-            // Сразу меняем визуал для мгновенного отклика (Optimistic UI)
+            let myLikes = getLikedNews();
+        
+            // Оптимистичное обновление интерфейса на экране для мгновенного отклика
             if (isLiked) {
                 btn.classList.remove('liked');
-                countSpan.innerText = currentCount - 1;
+                countSpan.innerText = Math.max(0, currentCount - 1);
+                // Удаляем ID из списка моих лайков
+                myLikes = myLikes.filter(likedId => likedId !== id);
             } else {
                 btn.classList.add('liked');
                 countSpan.innerText = currentCount + 1;
-                if (tg && tg.HapticFeedback) {
-                    try { tg.HapticFeedback.impactOccurred('light'); } catch(e) {}
+                // Добавляем ID в список моих лайков
+                if (!myLikes.includes(id)) myLikes.push(id);
+
+                if (tg && tg.HapticFeedback) { 
+                    try { tg.HapticFeedback.impactOccurred('light'); } catch(e) {} 
                 }
             }
         
-            // Отправляем запрос на бэкенд в фоновом режиме
+            // Сохраняем обновленный список в локальную память устройства
+            saveLikedNews(myLikes);
+        
+            // Отправляем запрос на сервер, чтобы обновить глобальный счетчик в news.json
             try {
                 const response = await fetch(`${API_URL}/api/news/${id}/like`, {
                     method: 'POST',
@@ -265,25 +274,41 @@
                     body: JSON.stringify({ action })
                 });
             
-                if (!response.ok) {
-                    // Если сервер вернул ошибку, откатываем визуал назад
-                    throw new Error('Ошибка сервера');
-                }
-                
+                if (!response.ok) throw new Error('Ошибка сервера');
+
                 const result = await response.json();
-                countSpan.innerText = result.likes; // Синхронизируем точное число с сервера
+                countSpan.innerText = result.likes; // Синхронизируем точную цифру с сервера
             } catch (e) {
-                console.error("Не удалось сохранить лайк:", e);
-                // Откат изменений при сбое сети
-                if (isLiked) {
-                    btn.classList.add('liked');
-                    countSpan.innerText = currentCount;
-                } else {
-                    btn.classList.remove('liked');
-                    countSpan.innerText = currentCount;
-                }
+                console.error("Не удалось синхронизировать лайк с сервером:", e);
+                // В случае жесткого сбоя сети можно перезагрузить ленту, чтобы вернуть верные значения
             }
         }
+
+        function openArticle(id) {
+            const article = allNews.find(item => item.id == id);
+            if (!article) return;
+            document.getElementById('full-title').innerText = article.title;
+            document.getElementById('full-date').innerText = new Date(article.createdAt).toLocaleString('ru-RU');
+            document.getElementById('full-content').innerHTML = article.content;
+            document.getElementById('full-news-page').classList.add('open');
+
+            if (tg && tg.BackButton) {
+                try { tg.BackButton.show(); tg.BackButton.onClick(closeArticle); } catch(e) {}
+            }
+        }
+
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                document.querySelector('.chip.active').classList.remove('active');
+                chip.classList.add('active');
+            });
+        });
+
+        function closeArticle() {
+            document.getElementById('full-news-page').classList.remove('open');
+            if (tg && tg.BackButton) { try { tg.BackButton.hide(); } catch(e) {} }
+        }
+
 
     </script>
 </body>
